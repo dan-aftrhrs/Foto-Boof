@@ -30,13 +30,13 @@ export const PhotoStrip: React.FC<PhotoStripProps> = ({
   return (
     <div 
       id="printable-strip"
-      className="bg-white text-zinc-900 p-8 shadow-2xl mx-auto max-w-md print:max-w-none print:shadow-none print:w-[300px] print:mx-auto transition-transform"
+      className="bg-white text-zinc-900 p-8 pb-16 shadow-2xl mx-auto max-w-md print:max-w-none print:shadow-none print:w-[300px] print:mx-auto transition-transform"
       style={{ minHeight: '800px' }}
     >
-      <div className="flex flex-col h-full items-center space-y-6">
+      <div className="flex flex-col h-full items-center space-y-8">
         {/* Header */}
-        <div className="text-center space-y-1">
-          <h2 className="text-3xl font-black tracking-tighter uppercase font-mono border-b-4 border-black pb-2 inline-block break-words max-w-full">
+        <div className="text-center w-full">
+          <h2 className="text-3xl font-serif font-normal tracking-[0.2em] uppercase border-b border-black pb-4 inline-block break-words max-w-full">
             {title}
           </h2>
         </div>
@@ -46,24 +46,26 @@ export const PhotoStrip: React.FC<PhotoStripProps> = ({
           {photos.map((photo) => (
             <div 
               key={photo.id} 
-              className="w-full overflow-hidden border-4 border-black bg-zinc-100 relative group"
+              className="w-full overflow-hidden bg-zinc-50 relative group shadow-sm"
             >
               <img 
                 src={photo.dataUrl} 
                 alt="Captured moment" 
                 className="w-full h-auto block" 
               />
-              {/* Subtle inner shadow for depth without altering image data */}
-              <div className="absolute inset-0 ring-1 ring-black/5 pointer-events-none shadow-[inset_0_0_20px_rgba(0,0,0,0.1)]"></div>
+              {/* Removed the heavy inner shadow/ring for a cleaner print look */}
             </div>
           ))}
         </div>
 
         {/* Footer */}
-        <div className="text-center pt-8 font-mono text-sm opacity-60 w-full border-t-2 border-dashed border-zinc-300 mt-4">
-          <p className="font-bold">{formattedDate}</p>
-          <p>{formattedTime}</p>
-          <p className="mt-2 text-xs break-words">{footer}</p>
+        <div className="text-center pt-8 w-full border-t border-zinc-200 mt-6 pb-2">
+          <div className="font-sans text-[10px] tracking-[0.2em] uppercase text-zinc-500 mb-2">
+            {formattedDate} &bull; {formattedTime}
+          </div>
+          <p className="font-serif italic text-lg tracking-wide text-zinc-800 break-words">
+            {footer}
+          </p>
         </div>
       </div>
     </div>

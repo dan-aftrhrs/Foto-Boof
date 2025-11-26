@@ -5,6 +5,7 @@ interface CameraViewProps {
   isMirrored: boolean;
   countdown: number | null;
   flashActive: boolean;
+  frozenFrame?: string | null;
   className?: string;
   onVideoLoaded?: (width: number, height: number) => void;
   children?: ReactNode;
@@ -15,6 +16,7 @@ export const CameraView = forwardRef<HTMLVideoElement, CameraViewProps>(({
   isMirrored, 
   countdown, 
   flashActive,
+  frozenFrame,
   className = '',
   onVideoLoaded,
   children
@@ -54,15 +56,24 @@ export const CameraView = forwardRef<HTMLVideoElement, CameraViewProps>(({
         className={`col-start-1 row-start-1 max-h-[75vh] w-auto max-w-full object-contain ${isMirrored ? 'scale-x-[-1]' : ''}`}
       />
 
+      {/* Frozen Frame Overlay - Shown when picture is taken */}
+      {frozenFrame && (
+        <img 
+          src={frozenFrame}
+          alt="Frozen frame"
+          className="col-start-1 row-start-1 max-h-[75vh] w-auto max-w-full object-contain z-20 pointer-events-none"
+        />
+      )}
+
       {/* Overlays Wrapper - Sits on top of video */}
-      <div className="col-start-1 row-start-1 w-full h-full relative z-10 pointer-events-none">
+      <div className="col-start-1 row-start-1 w-full h-full relative z-30 pointer-events-none">
         
         {/* Pass-through children (Badges, Counters) */}
         {children}
 
         {/* Countdown Overlay */}
         {countdown !== null && countdown > 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/10 backdrop-blur-[2px] z-20">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/10 z-20">
             <div className="text-7xl font-black text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]">
               {countdown}
             </div>

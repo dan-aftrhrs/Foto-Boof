@@ -9,6 +9,7 @@ import { AppMode, PhotoData } from './types';
 // Constants
 const COUNTDOWN_SECONDS = 3;
 const FLASH_DURATION_MS = 150;
+const FREEZE_DURATION_MS = 2000; // How long to show the frozen photo before next countdown
 const IS_MIRRORED = true; // Centralized mirror config
 
 export default function App() {
@@ -20,17 +21,23 @@ export default function App() {
   const [flashActive, setFlashActive] = useState(false);
   const [sessionDate, setSessionDate] = useState<Date>(new Date());
   
+  // Frozen frame state for the pause effect
+  const [frozenFrame, setFrozenFrame] = useState<string | null>(null);
+  
   // Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [stripSettings, setStripSettings] = useState({
-    title: 'PHOTO BOOTH',
-    footer: '#SnapPrintMemories'
+    title: 'FOTO BOOF',
+    footer: '#FotoBoofMemories'
   });
   
-  // --- Hooks ---
-  const { devices, activeDeviceId, setActiveDeviceId, stream, error } = useMediaDevices();
+  // --- Refs ---
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas'));
+  const isCapturingRef = useRef(false); // Guard against double-fires in Strict Mode
+
+  // --- Hooks ---
+  const { devices, activeDeviceId, setActiveDeviceId, stream, error } = useMediaDevices();
 
   // --- Actions ---
 
@@ -65,6 +72,7 @@ export default function App() {
       };
       
       setPhotos(prev => [...prev, newPhoto]);
+      setFrozenFrame(dataUrl); // Freeze the view
       setFlashActive(true);
       setTimeout(() => setFlashActive(false), FLASH_DURATION_MS);
     }
@@ -75,6 +83,7 @@ export default function App() {
     setSessionDate(new Date());
     setMode(AppMode.COUNTDOWN);
     setCountdown(COUNTDOWN_SECONDS);
+    setFrozenFrame(null);
   };
 
   const handlePrint = () => {
@@ -85,48 +94,62 @@ export default function App() {
     setPhotos([]);
     setMode(AppMode.IDLE);
     setCountdown(null);
+    setFrozenFrame(null);
   };
 
-  // Main Session Loop
+  // --- Logic / Effects ---
+
+  // 1. Countdown Timer Ticker
   useEffect(() => {
-    if (mode === AppMode.COUNTDOWN) {
-      // Initialize countdown if null
-      if (countdown === null) {
-        setCountdown(COUNTDOWN_SECONDS);
-        return;
-      }
+    let timer: ReturnType<typeof setTimeout>;
+    if (mode === AppMode.COUNTDOWN && countdown !== null && countdown > 0) {
+      timer = setTimeout(() => {
+        setCountdown(prev => (prev !== null ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [mode, countdown]);
 
-      if (countdown > 0) {
-        const timer = setTimeout(() => {
-          setCountdown(prev => (prev !== null ? prev - 1 : null));
-        }, 1000);
-        return () => clearTimeout(timer);
-      }
+  // 2. Trigger Transition to CAPTURING when Countdown hits 0
+  useEffect(() => {
+    if (mode === AppMode.COUNTDOWN && countdown === 0) {
+      setMode(AppMode.CAPTURING);
+    }
+  }, [mode, countdown]);
 
-      if (countdown === 0) {
-        // Time to capture
-        setMode(AppMode.CAPTURING);
-      }
-    } else if (mode === AppMode.CAPTURING) {
-      // Execute capture immediately when entering CAPTURING mode
+  // 3. Handle CAPTURE Logic
+  useEffect(() => {
+    if (mode === AppMode.CAPTURING) {
+      // Prevent double invocation (Strict Mode safety)
+      if (isCapturingRef.current) return;
+      isCapturingRef.current = true;
+
+      // 1. Take the Photo
       capturePhoto();
-      
-      // Schedule next step
-      const delay = setTimeout(() => {
+
+      // 2. Wait, then decide next step
+      const timer = setTimeout(() => {
         setPhotos(currentPhotos => {
-          if (currentPhotos.length < photosToTake) {
-            setMode(AppMode.COUNTDOWN); 
-            setCountdown(COUNTDOWN_SECONDS);
-          } else {
+          // Check if we have enough photos
+          if (currentPhotos.length >= photosToTake) {
             setMode(AppMode.REVIEW);
+            setFrozenFrame(null);
+          } else {
+            // Prepare for next photo
+            setCountdown(COUNTDOWN_SECONDS); // Reset timer
+            setMode(AppMode.COUNTDOWN);      // Switch mode
+            setFrozenFrame(null);            // Unfreeze
           }
           return currentPhotos;
         });
-      }, 1000); // 1 second delay to review the shot briefly
-      
-      return () => clearTimeout(delay);
+        
+        // Reset guard
+        isCapturingRef.current = false;
+      }, FREEZE_DURATION_MS);
+
+      return () => clearTimeout(timer);
     }
-  }, [mode, countdown, photosToTake, capturePhoto]);
+  }, [mode, capturePhoto, photosToTake]); 
 
 
   // --- Render Helpers ---
@@ -180,7 +203,7 @@ export default function App() {
               type="text"
               value={stripSettings.title}
               onChange={(e) => setStripSettings(s => ({ ...s, title: e.target.value.toUpperCase() }))}
-              placeholder="PHOTO BOOTH"
+              placeholder="FOTO BOOF"
               className="w-full bg-zinc-950 border border-zinc-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
@@ -191,7 +214,7 @@ export default function App() {
               type="text"
               value={stripSettings.footer}
               onChange={(e) => setStripSettings(s => ({ ...s, footer: e.target.value }))}
-              placeholder="#SnapPrintMemories"
+              placeholder="#FotoBoofMemories"
               className="w-full bg-zinc-950 border border-zinc-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
@@ -216,8 +239,8 @@ export default function App() {
             <ImageIcon className="w-4 h-4 mr-2" />
             Number of Photos
           </label>
-          <div className="grid grid-cols-4 gap-2">
-            {[1, 2, 3, 4].map(num => (
+          <div className="grid grid-cols-2 gap-2">
+            {[3, 4].map(num => (
               <button
                 key={num}
                 onClick={() => setPhotosToTake(num)}
@@ -282,10 +305,10 @@ export default function App() {
                 isMirrored={IS_MIRRORED}
                 countdown={countdown}
                 flashActive={flashActive}
-                // No explicit dimensions needed here, intrinsic video size takes over
+                frozenFrame={frozenFrame}
              >
                 {/* Status Badge */}
-                {mode === AppMode.COUNTDOWN && (
+                {mode === AppMode.COUNTDOWN && !frozenFrame && (
                   <div className="absolute top-4 left-0 right-0 flex justify-center animate-in fade-in slide-in-from-top-2 z-30">
                     <div className="bg-red-500/90 backdrop-blur text-white px-4 py-1 rounded-full text-xs font-bold tracking-wider uppercase shadow-lg animate-pulse">
                       Get Ready
@@ -312,7 +335,7 @@ export default function App() {
             <div className="p-2 bg-indigo-600 rounded-lg">
               <Camera className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">SnapPrint</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Foto Boof</h1>
           </div>
           
           <Button 
@@ -332,10 +355,14 @@ export default function App() {
           {(mode === AppMode.COUNTDOWN || mode === AppMode.CAPTURING) && (
              <div className="text-center space-y-4 animate-pulse">
                <h3 className="text-3xl font-light text-zinc-300">
-                 {mode === AppMode.CAPTURING ? 'Say Cheese!' : 'Get Ready...'}
+                 {mode === AppMode.CAPTURING 
+                    ? 'Say Cheese!' 
+                    : (frozenFrame ? 'Nice Shot!' : 'Get Ready...')}
                </h3>
                <p className="text-zinc-500">
-                 {mode === AppMode.CAPTURING ? 'Capturing moment...' : 'Pose for the camera!'}
+                 {mode === AppMode.CAPTURING 
+                   ? 'Capturing moment...' 
+                   : (frozenFrame ? 'Getting ready for the next one...' : 'Pose for the camera!')}
                </p>
              </div>
           )}
@@ -361,7 +388,7 @@ export default function App() {
         </div>
 
         <footer className="mt-8 md:mt-12 text-center text-xs text-zinc-600 font-mono hidden md:block">
-           v1.2.0 &bull; Custom Settings
+           v1.3.1 &bull; Foto Boof
         </footer>
 
       </div>

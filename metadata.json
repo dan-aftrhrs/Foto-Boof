@@ -1,5 +1,5 @@
 {
-  "name": "SnapPrint Photo Booth",
+  "name": "Foto Boof",
   "description": "A modern, retro-styled photo booth application. Select your camera, choose your strip layout, take photos with a timer, and print your memories immediately.",
   "requestFramePermissions": [
     "camera"
